@@ -57,9 +57,12 @@ export default function Analysis(){
     // Only parse if raw exists and is not the string "undefined"
     if (raw && raw !== 'undefined' && raw !== 'null') {
       result = JSON.parse(raw)
+      console.log('✅ Loaded analysis_result from localStorage:', result)
+    } else {
+      console.warn('⚠️ analysis_result not found in localStorage')
     }
   } catch (err) {
-    console.error('Error parsing analysis_result:', err)
+    console.error('❌ Error parsing analysis_result:', err)
   }
   
   try {
@@ -67,9 +70,25 @@ export default function Analysis(){
     // Only parse if rawRows exists and is not the string "undefined"
     if (rawRows && rawRows !== 'undefined' && rawRows !== 'null') {
       rows = JSON.parse(rawRows)
+      console.log(`✅ Loaded ${rows.length} transaction rows from localStorage`)
+    } else {
+      console.warn('⚠️ analysis_rows not found in localStorage')
     }
   } catch (err) {
-    console.error('Error parsing analysis_rows:', err)
+    console.error('❌ Error parsing analysis_rows:', err)
+  }
+  
+  // Log data structure for debugging
+  if (result) {
+    console.log('📊 Result structure:', {
+      hasAccounts: !!result.accounts,
+      accountCount: result.accounts?.length || 0,
+      hasRings: !!result.rings,
+      ringCount: result.rings?.length || 0,
+      hasSummary: !!result.summary,
+      hasNodes: !!result.nodes,
+      hasEdges: !!result.edges
+    })
   }
 
   if(!result) return (
@@ -83,14 +102,47 @@ export default function Analysis(){
   )
 
   function downloadReport() {
-    const jsonStr = JSON.stringify(result, null, 2)
+    // Transform result to match the required JSON format
+    const transformedData = {
+      suspicious_accounts: result.accounts.map(account => ({
+        account_id: account.account_id,
+        suspicion_score: account.suspicion_score,
+        detected_patterns: account.detected_patterns || [],
+        ring_ids: account.ring_ids || []
+      })),
+      fraud_rings: result.rings.map(ring => ({
+        ring_id: ring.ring_id,
+        member_accounts: ring.member_accounts,
+        pattern_type: ring.pattern_type,
+        risk_score: ring.risk_score
+      })),
+      summary: {
+        total_accounts_analyzed: result.summary.total_accounts_analyzed,
+        suspicious_accounts_flagged: result.summary.suspicious_accounts_flagged,
+        fraud_rings_detected: result.summary.fraud_rings_detected,
+        processing_time_seconds: result.summary.processing_time_seconds
+      }
+    }
+    
+    const jsonStr = JSON.stringify(transformedData, null, 2)
     const blob = new Blob([jsonStr], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'analysis_report.json'
+    a.download = 'fraud_analysis_report.json'
     a.click()
     URL.revokeObjectURL(url)
+  }
+  
+  function openBrowserConsole() {
+    // Log all data for debugging
+    console.log('📋 ===== DATA INSPECTION =====')
+    console.log('Result object:', result)
+    console.log('Rows count:', rows.length)
+    console.log('Accounts:', result?.accounts?.length || 0)
+    console.log('Rings:', result?.rings?.length || 0)
+    console.log('Summary:', result?.summary)
+    console.log('✅ Check browser console for details')
   }
 
   return (
@@ -200,6 +252,7 @@ export default function Analysis(){
 
           {/* Content Area */}
           <div style={{padding: '24px'}}>
+            {console.log('📤 Analysis passing to Outlet:', {resultExists: !!result, rowsCount: rows.length})}
             <Outlet context={{result, rows}} />
           </div>
         </div>

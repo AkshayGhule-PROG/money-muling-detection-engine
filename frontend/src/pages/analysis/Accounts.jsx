@@ -6,16 +6,69 @@ export default function Accounts(){
   const { rows, result } = useOutletContext()
   const suspicious = result?.accounts || []
   const [q, setQ] = useState('')
+  
+  console.log('🔄 Accounts component mounted', { rowsCount: rows?.length, suspiciousCount: suspicious.length })
+  
   const accounts = useMemo(()=>{
-    if (!rows || rows.length === 0) return []
+    if (!rows || rows.length === 0) {
+      console.warn('⚠️ No rows data available')
+      return []
+    }
+    console.log(`📊 Building account map from ${rows.length} rows`)
     const map = new Map()
+    
+    // Build a complete map of all accounts from transactions
     for(const t of rows){
       if (!t) continue
-      if (t.sender_id) map.set(t.sender_id, (map.get(t.sender_id)||0)+1)
-      if (t.receiver_id) map.set(t.receiver_id, (map.get(t.receiver_id)||0)+1)
+      // Use 'sender' and 'receiver' instead of 'sender_id' and 'receiver_id'
+      if (t.sender) {
+        if (!map.has(t.sender)) {
+          map.set(t.sender, {
+            account_id: t.sender,
+            sent_count: 0,
+            received_count: 0,
+            total_transactions: 0
+          })
+        }
+        map.get(t.sender).sent_count += 1
+        map.get(t.sender).total_transactions += 1
+      }
+      if (t.receiver) {
+        if (!map.has(t.receiver)) {
+          map.set(t.receiver, {
+            account_id: t.receiver,
+            sent_count: 0,
+            received_count: 0,
+            total_transactions: 0
+          })
+        }
+        map.get(t.receiver).received_count += 1
+        map.get(t.receiver).total_transactions += 1
+      }
     }
-    const arr = Array.from(map.entries()).map(([id,cnt])=>({account_id:id, transactions:cnt, score:(suspicious.find(x=>x.account_id===id)?.suspicion_score||0), patterns:(suspicious.find(x=>x.account_id===id)?.detected_patterns||[]) }))
-    return arr.sort((a,b)=>b.score - a.score)
+    
+    // Add suspicious account details to the map
+    const suspiciousMap = new Map()
+    for (const acc of suspicious) {
+      suspiciousMap.set(acc.account_id, acc)
+    }
+    
+    // Merge suspicious data into accounts
+    const arr = Array.from(map.values()).map(acc => {
+      const suspData = suspiciousMap.get(acc.account_id)
+      return {
+        account_id: acc.account_id,
+        transactions: acc.total_transactions,
+        score: suspData?.suspicion_score || 0,
+        patterns: suspData?.detected_patterns || [],
+        sent: acc.sent_count,
+        received: acc.received_count
+      }
+    })
+    
+    const sorted = arr.sort((a,b)=>b.score - a.score)
+    console.log(`✅ Built ${sorted.length} accounts (${suspiciousMap.size} suspicious)`, sorted.slice(0, 3))
+    return sorted
   },[rows,suspicious])
 
   const filtered = accounts.filter(a => a?.account_id?.toString().toLowerCase().includes(q.toLowerCase()))

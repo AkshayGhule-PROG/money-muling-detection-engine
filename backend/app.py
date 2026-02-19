@@ -239,6 +239,7 @@ def get_results():
     """
     try:
         if analysis_cache["results"] is None:
+            print("⚠️ No analysis results in cache")
             return jsonify({
                 "nodes": [],
                 "edges": [],
@@ -250,14 +251,26 @@ def get_results():
         results = analysis_cache["results"]
         viz_data = analysis_cache["viz_data"]
         
-        return jsonify({
+        # Debug logging
+        print(f"\n📊 /results endpoint called")
+        print(f"   - Suspicious accounts: {len(results['suspicious_accounts'])}")
+        print(f"   - All rings: {len(results['all_rings'])}")
+        print(f"   - Viz nodes: {len(viz_data['nodes'])}")
+        print(f"   - Viz edges: {len(viz_data['edges'])}")
+        
+        response_data = {
             "nodes": viz_data["nodes"],
             "edges": viz_data["edges"],
             "rings": results["all_rings"],
             "accounts": results["suspicious_accounts"],
             "summary": results["final_json"]["summary"],
             "timestamp": datetime.now().isoformat()
-        }), 200
+        }
+        
+        print(f"✅ Sending response with {len(response_data['accounts'])} accounts")
+        print(f"   First 3 accounts: {response_data['accounts'][:3] if response_data['accounts'] else 'None'}\n")
+        
+        return jsonify(response_data), 200
         
     except Exception as e:
         return jsonify({
